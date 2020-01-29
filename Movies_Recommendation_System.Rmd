@@ -1,0 +1,132 @@
+---
+title: "Movies Recommendation System"
+output:
+  html_notebook:
+    toc: yes
+    toc_float: yes
+  html_document:
+    df_print: paged
+    toc: yes
+author: "Shivam Kulkarni"
+date: "11/30/2019"
+---
+
+library(dplyr)
+library(set)
+library(lsa)
+
+setwd("C:/R_programming")
+
+movies.df <- read.csv("movies.csv", header = T, sep = ",", stringsAsFactors = F)
+ratings.df <- read.csv("ratings.csv", header = T, sep = ",", stringsAsFactors = F)
+
+movies.df <- as.data.frame(movies.df)
+
+my.hawk.id <- 20443550
+user.selected <- my.hawk.id %% 671
+
+one.user.ratings <- filter(ratings.df, ratings.df$userId == user.selected)
+
+movies.df$genres <- strsplit(movies.df$genres, "\\|")
+all.records.genres <- movies.df$genres
+
+genres <- c()
+
+for(i in 1:length(all.records.genres))
+{
+  genres <- c(genres, all.records.genres[[i]])
+}
+
+genres <- sort(unique(genres))
+
+all.zeros <- rep(0,20)
+
+column.names <- c("Movie",genres)
+user.profile <- data.frame(matrix(ncol = 20, nrow = 0))
+colnames(user.profile) <- genres
+
+for(i in 1:length(one.user.ratings$movieId))
+{
+  user.profile <- rbind(user.profile,all.zeros)
+}
+
+
+user.profile <- cbind(one.user.ratings$movieId,user.profile)
+
+colnames(user.profile) <- column.names
+
+for(i in 1:nrow(user.profile))
+{
+  this.movie <- user.profile$Movie[i]
+  movie.record.genres <- filter(movies.df, movies.df$movieId == this.movie)[[3]][1]
+  for(j in 2:21)
+  {
+    if(colnames(user.profile)[j] %in% movie.record.genres[[1]])
+    {
+      user.profile[i,j] = 1
+    }
+  }
+}
+
+
+user.vector <- c()
+for(i in 2:ncol(user.profile))
+{
+  user.vector <- c(user.vector, mean(user.profile[,i]))
+}
+
+#Item Profile starts here
+
+all.zeros.pro <- rep(0,20)
+
+movie.profile <- data.frame(matrix(ncol = 20, nrow = 0))
+colnames(movie.profile) <- genres
+
+for(i in 1:nrow(movies.df))
+{
+  movie.profile <- rbind(movie.profile,all.zeros.pro)
+}
+
+movie.profile <- cbind(movies.df$movieId,movie.profile)
+colnames(movie.profile) <- column.names
+
+for(i in 1:nrow(movies.df))
+{
+  this.movie <- movie.profile$Movie[i]
+  movie.record.genres <- filter(movies.df, movies.df$movieId == this.movie)[[3]][1]
+  for(j in 2:21)
+  {
+    if(colnames(movie.profile)[j] %in% movie.record.genres[[1]])
+    {
+      movie.profile[i,j] = 1
+    }
+  }
+}
+
+#Testing for 145
+fil.145 <- filter(movie.profile, movie.profile$Movie == 145)
+cosine(as.numeric(fil.145[1,-1]), user.vector)
+
+set.seed(1122)
+random.movies <- sample(movies.df$movieId,10,replace=F)
+random.movies
+
+
+mv <- c()
+mname <- c()
+similarity <- c()
+for(i in 1:10)
+{
+  filter.movie <- filter(movie.profile, movie.profile$Movie == random.movies[i])
+  filter.movie.name <- as.character(filter(movies.df, movies.df$movieId == random.movies[i])[2][1])
+ 
+  mv <- c(mv,random.movies[i])
+  mname <- c(mname, filter.movie.name)
+  similarity <- c(similarity , cosine(as.numeric(filter.movie[1,-1]), user.vector))
+}
+
+result.df <- data.frame(mv,mname,similarity)
+result.df <- result.df[order(-similarity),]
+colnames(result.df) <- c("MovieId", "MovieName", "Similarity")
+cat("User ID X chose the following 10 movies:",random.movies, "\nOf these, the following 5 movies are recommended: ")
+head(result.df, n=5)
